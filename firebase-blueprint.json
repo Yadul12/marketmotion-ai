@@ -1,0 +1,328 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "A prediction-market content studio project containing event details, AI scripts, workflow tracking, and social publishing packages.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the project owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Prediction-market event title.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "description": "Market category (e.g., Macroeconomics, Technology, Geopolitics, Energy).",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "description": "Core resolution criteria and context of the prediction market.",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "marketProbability": {
+          "type": "number",
+          "description": "Current market implied probability percentage (0 to 100)."
+        },
+        "latestDevelopments": {
+          "type": "string",
+          "description": "Recent verified news catalysts and volume shifts.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "sourceLinks": {
+          "type": "string",
+          "description": "Newline-separated list of verified source links.",
+          "minLength": 0,
+          "maxLength": 2000
+        },
+        "rawArticleText": {
+          "type": "string",
+          "description": "Optional pasted news article or summary text.",
+          "minLength": 0,
+          "maxLength": 8000
+        },
+        "status": {
+          "type": "string",
+          "description": "Production lifecycle stage of the content project.",
+          "enum": ["draft", "scripted", "storyboarded", "production", "ready", "published", "archived"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "script30s": {
+          "type": "string",
+          "description": "30-second short-form video script.",
+          "minLength": 0,
+          "maxLength": 5000
+        },
+        "script60s": {
+          "type": "string",
+          "description": "60-second in-depth short-form video script.",
+          "minLength": 0,
+          "maxLength": 8000
+        },
+        "hooks": {
+          "type": "string",
+          "description": "Attention-grabbing opening hooks.",
+          "minLength": 0,
+          "maxLength": 3000
+        },
+        "narration": {
+          "type": "string",
+          "description": "Full explanatory voiceover narration.",
+          "minLength": 0,
+          "maxLength": 6000
+        },
+        "verifiedFacts": {
+          "type": "string",
+          "description": "Strictly verified factual statements grounded in sources.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "probabilityAnalysis": {
+          "type": "string",
+          "description": "Explanation of current market odds and pricing dynamics.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "speculationNotes": {
+          "type": "string",
+          "description": "Forward-looking scenarios and unconfirmed catalysts.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "shortCaption": {
+          "type": "string",
+          "description": "Concise social video caption.",
+          "minLength": 0,
+          "maxLength": 2000
+        },
+        "hashtags": {
+          "type": "string",
+          "description": "Platform-specific hashtags.",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "callToAction": {
+          "type": "string",
+          "description": "Closing call to action for viewers.",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "pubInstagram": {
+          "type": "string",
+          "description": "Instagram Reels publishing caption package.",
+          "minLength": 0,
+          "maxLength": 3000
+        },
+        "pubTiktok": {
+          "type": "string",
+          "description": "TikTok publishing caption package.",
+          "minLength": 0,
+          "maxLength": 3000
+        },
+        "pubYoutubeTitle": {
+          "type": "string",
+          "description": "YouTube Shorts title.",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "pubYoutubeDesc": {
+          "type": "string",
+          "description": "YouTube Shorts description and tags.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "pubXThread": {
+          "type": "string",
+          "description": "X (Twitter) post and thread package.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "pubLinkedin": {
+          "type": "string",
+          "description": "LinkedIn analytical post package.",
+          "minLength": 0,
+          "maxLength": 4000
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Uploaded or rendered video URL path for preview.",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "videoFileName": {
+          "type": "string",
+          "description": "Uploaded video file name.",
+          "minLength": 0,
+          "maxLength": 255
+        },
+        "workflowStatus": {
+          "type": "string",
+          "description": "JSON state tracking Runway, Higgsfield, ElevenLabs, and CapCut steps.",
+          "minLength": 0,
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "title",
+        "category",
+        "description",
+        "marketProbability",
+        "latestDevelopments",
+        "sourceLinks",
+        "rawArticleText",
+        "status",
+        "script30s",
+        "script60s",
+        "hooks",
+        "narration",
+        "verifiedFacts",
+        "probabilityAnalysis",
+        "speculationNotes",
+        "shortCaption",
+        "hashtags",
+        "callToAction",
+        "pubInstagram",
+        "pubTiktok",
+        "pubYoutubeTitle",
+        "pubYoutubeDesc",
+        "pubXThread",
+        "pubLinkedin",
+        "videoUrl",
+        "videoFileName",
+        "workflowStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Scene": {
+      "title": "Scene",
+      "description": "An individual storyboard scene belonging to a Project.",
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Parent project document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sceneNumber": {
+          "type": "integer",
+          "description": "Sequential scene index (1-based)."
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "description": "Suggested scene duration in seconds."
+        },
+        "sceneDescription": {
+          "type": "string",
+          "description": "Narrative and visual breakdown of the scene.",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "visualPrompt": {
+          "type": "string",
+          "description": "Runway Gen-3 Alpha motion prompt for AI video generation.",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "higgsfieldPrompt": {
+          "type": "string",
+          "description": "Higgsfield cinematic camera and character lighting prompt.",
+          "minLength": 0,
+          "maxLength": 2000
+        },
+        "voiceoverText": {
+          "type": "string",
+          "description": "ElevenLabs spoken narration script for this scene.",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "onScreenText": {
+          "type": "string",
+          "description": "CapCut lower-third or kinetic typography overlay text.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "transitionRecommendation": {
+          "type": "string",
+          "description": "Recommended edit transition to the next scene.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "epistemicTag": {
+          "type": "string",
+          "description": "Classification distinguishing verified facts from market odds or speculation.",
+          "enum": ["verified_fact", "market_probability", "speculation"],
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "projectId",
+        "ownerId",
+        "sceneNumber",
+        "durationSeconds",
+        "sceneDescription",
+        "visualPrompt",
+        "higgsfieldPrompt",
+        "voiceoverText",
+        "onScreenText",
+        "transitionRecommendation",
+        "epistemicTag",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Stores prediction-market content projects owned by authenticated users."
+    },
+    "/projects/{projectId}/scenes/{sceneId}": {
+      "schema": "Scene",
+      "description": "Stores individual storyboard scenes as a subcollection under a parent project."
+    }
+  }
+}

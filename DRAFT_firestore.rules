@@ -1,0 +1,206 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Reusable Hardened Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isBoundedString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidProject(data) {
+      return data.keys().hasAll([
+        'ownerId', 'title', 'category', 'description', 'marketProbability',
+        'latestDevelopments', 'sourceLinks', 'rawArticleText', 'status',
+        'script30s', 'script60s', 'hooks', 'narration', 'verifiedFacts',
+        'probabilityAnalysis', 'speculationNotes', 'shortCaption', 'hashtags',
+        'callToAction', 'pubInstagram', 'pubTiktok', 'pubYoutubeTitle',
+        'pubYoutubeDesc', 'pubXThread', 'pubLinkedin', 'videoUrl',
+        'videoFileName', 'workflowStatus', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'title', 'category', 'description', 'marketProbability',
+        'latestDevelopments', 'sourceLinks', 'rawArticleText', 'status',
+        'script30s', 'script60s', 'hooks', 'narration', 'verifiedFacts',
+        'probabilityAnalysis', 'speculationNotes', 'shortCaption', 'hashtags',
+        'callToAction', 'pubInstagram', 'pubTiktok', 'pubYoutubeTitle',
+        'pubYoutubeDesc', 'pubXThread', 'pubLinkedin', 'videoUrl',
+        'videoFileName', 'workflowStatus', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      isBoundedString(data.title, 1, 200) &&
+      isBoundedString(data.category, 1, 60) &&
+      isBoundedString(data.description, 1, 4000) &&
+      (data.marketProbability is int || data.marketProbability is float) &&
+      data.marketProbability >= 0 && data.marketProbability <= 100 &&
+      isBoundedString(data.latestDevelopments, 0, 4000) &&
+      isBoundedString(data.sourceLinks, 0, 2000) &&
+      isBoundedString(data.rawArticleText, 0, 8000) &&
+      isBoundedString(data.status, 1, 32) &&
+      data.status in ['draft', 'scripted', 'storyboarded', 'production', 'ready', 'published', 'archived'] &&
+      isBoundedString(data.script30s, 0, 5000) &&
+      isBoundedString(data.script60s, 0, 8000) &&
+      isBoundedString(data.hooks, 0, 3000) &&
+      isBoundedString(data.narration, 0, 6000) &&
+      isBoundedString(data.verifiedFacts, 0, 4000) &&
+      isBoundedString(data.probabilityAnalysis, 0, 4000) &&
+      isBoundedString(data.speculationNotes, 0, 4000) &&
+      isBoundedString(data.shortCaption, 0, 2000) &&
+      isBoundedString(data.hashtags, 0, 1000) &&
+      isBoundedString(data.callToAction, 0, 1000) &&
+      isBoundedString(data.pubInstagram, 0, 3000) &&
+      isBoundedString(data.pubTiktok, 0, 3000) &&
+      isBoundedString(data.pubYoutubeTitle, 0, 300) &&
+      isBoundedString(data.pubYoutubeDesc, 0, 4000) &&
+      isBoundedString(data.pubXThread, 0, 4000) &&
+      isBoundedString(data.pubLinkedin, 0, 4000) &&
+      isBoundedString(data.videoUrl, 0, 1000) &&
+      isBoundedString(data.videoFileName, 0, 255) &&
+      isBoundedString(data.workflowStatus, 0, 2000) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidScene(data, parentProjectId) {
+      return data.keys().hasAll([
+        'projectId', 'ownerId', 'sceneNumber', 'durationSeconds',
+        'sceneDescription', 'visualPrompt', 'higgsfieldPrompt',
+        'voiceoverText', 'onScreenText', 'transitionRecommendation',
+        'epistemicTag', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'projectId', 'ownerId', 'sceneNumber', 'durationSeconds',
+        'sceneDescription', 'visualPrompt', 'higgsfieldPrompt',
+        'voiceoverText', 'onScreenText', 'transitionRecommendation',
+        'epistemicTag', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.projectId) &&
+      data.projectId == parentProjectId &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.sceneNumber is int && data.sceneNumber >= 1 && data.sceneNumber <= 50 &&
+      data.durationSeconds is int && data.durationSeconds >= 1 && data.durationSeconds <= 120 &&
+      isBoundedString(data.sceneDescription, 1, 2000) &&
+      isBoundedString(data.visualPrompt, 1, 2000) &&
+      isBoundedString(data.higgsfieldPrompt, 0, 2000) &&
+      isBoundedString(data.voiceoverText, 1, 2000) &&
+      isBoundedString(data.onScreenText, 0, 500) &&
+      isBoundedString(data.transitionRecommendation, 1, 300) &&
+      isBoundedString(data.epistemicTag, 1, 40) &&
+      data.epistemicTag in ['verified_fact', 'market_probability', 'speculation'] &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isParentProjectOwner(projectId) {
+      return exists(/databases/$(database)/documents/projects/$(projectId)) &&
+        get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+    }
+
+    // 4. Projects Collection Rules
+    match /projects/{projectId} {
+      allow get: if isVerifiedUser() && isValidId(projectId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(projectId) &&
+        isValidProject(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(projectId) &&
+        isValidProject(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        existing().status != 'archived' && (
+          // Action 1: Update Event Metadata & Content Workspace
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'category', 'description', 'marketProbability',
+            'latestDevelopments', 'sourceLinks', 'rawArticleText', 'status',
+            'script30s', 'script60s', 'hooks', 'narration', 'verifiedFacts',
+            'probabilityAnalysis', 'speculationNotes', 'shortCaption', 'hashtags',
+            'callToAction', 'pubInstagram', 'pubTiktok', 'pubYoutubeTitle',
+            'pubYoutubeDesc', 'pubXThread', 'pubLinkedin', 'videoUrl',
+            'videoFileName', 'workflowStatus', 'updatedAt'
+          ])
+        );
+
+      allow delete: if isVerifiedUser() &&
+        isValidId(projectId) &&
+        existing().ownerId == request.auth.uid;
+
+      // 5. Scenes Subcollection Rules (Master Gate Pattern)
+      match /scenes/{sceneId} {
+        allow get: if isVerifiedUser() &&
+          isValidId(projectId) &&
+          isValidId(sceneId) &&
+          existing().ownerId == request.auth.uid &&
+          isParentProjectOwner(projectId);
+
+        allow list: if isVerifiedUser() &&
+          existing().ownerId == request.auth.uid;
+
+        allow create: if isVerifiedUser() &&
+          isValidId(projectId) &&
+          isValidId(sceneId) &&
+          isValidScene(incoming(), projectId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          isParentProjectOwner(projectId);
+
+        allow update: if isVerifiedUser() &&
+          isValidId(projectId) &&
+          isValidId(sceneId) &&
+          isValidScene(incoming(), projectId) &&
+          existing().ownerId == request.auth.uid &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().projectId == existing().projectId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          isParentProjectOwner(projectId) && (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'sceneNumber', 'durationSeconds', 'sceneDescription',
+              'visualPrompt', 'higgsfieldPrompt', 'voiceoverText',
+              'onScreenText', 'transitionRecommendation', 'epistemicTag',
+              'updatedAt'
+            ])
+          );
+
+        allow delete: if isVerifiedUser() &&
+          isValidId(projectId) &&
+          isValidId(sceneId) &&
+          existing().ownerId == request.auth.uid &&
+          isParentProjectOwner(projectId);
+      }
+    }
+  }
+}

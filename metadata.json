@@ -1,0 +1,6 @@
+{
+  "name": "MarketMotion AI",
+  "description": "AI-powered short-form video and social content studio for prediction-market intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
