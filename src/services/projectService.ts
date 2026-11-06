@@ -9,10 +9,65 @@ import {
   query,
   where,
   serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Project, Scene, EpistemicTag, ProjectStatus } from '../types/studio';
 import { SAMPLE_EVENTS } from '../data/sampleEvents';
+
+const LOCAL_PROJECTS_KEY = 'marketmotion_local_projects_v1';
+const LOCAL_SCENES_KEY = 'marketmotion_local_scenes_v1';
+const localListeners = new Set<() => void>();
+
+function isLocalSession(ownerId?: string): boolean {
+  if (ownerId && ownerId.startsWith('studio-producer')) {
+    return true;
+  }
+  return !auth.currentUser;
+}
+
+function readLocalProjects(): Project[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_PROJECTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as any[];
+    return parsed.map((p) => ({
+      ...p,
+      createdAt: p.createdAtMs ? Timestamp.fromMillis(p.createdAtMs) : undefined,
+      updatedAt: p.updatedAtMs ? Timestamp.fromMillis(p.updatedAtMs) : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalProjects(items: any[]) {
+  try {
+    localStorage.setItem(LOCAL_PROJECTS_KEY, JSON.stringify(items));
+  } catch {
+    // ignore storage errors
+  }
+  localListeners.forEach((fn) => fn());
+}
+
+function readLocalScenes(): Scene[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_SCENES_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as Scene[];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalScenes(items: Scene[]) {
+  try {
+    localStorage.setItem(LOCAL_SCENES_KEY, JSON.stringify(items));
+  } catch {
+    // ignore storage errors
+  }
+  localListeners.forEach((fn) => fn());
+}
 
 // Defensive validation & truncation helpers strictly matching firebase-blueprint.json & firestore.rules
 function clampStr(val: string | undefined | null, maxLen: number, fallback = ''): string {
@@ -53,6 +108,23 @@ export function subscribeUserProjects(
   onData: (projects: Project[]) => void,
   onError?: (err: Error) => void
 ) {
+  if (isLocalSession(ownerId)) {
+    const emit = () => {
+      const items = readLocalProjects().filter((p) => p.ownerId === ownerId);
+      items.sort((a, b) => {
+        const tA = a.updatedAt?.toMillis?.() ?? 0;
+        const tB = b.updatedAt?.toMillis?.() ?? 0;
+        return tB - tA;
+      });
+      onData(items);
+    };
+    localListeners.add(emit);
+    setTimeout(emit, 0);
+    return () => {
+      localListeners.delete(emit);
+    };
+  }
+
   const path = 'projects';
   const q = query(collection(db, path), where('ownerId', '==', ownerId));
 
@@ -82,6 +154,21 @@ export function subscribeProjectScenes(
   ownerId: string,
   onData: (scenes: Scene[]) => void
 ) {
+  if (isLocalSession(ownerId)) {
+    const emit = () => {
+      const items = readLocalScenes().filter(
+        (s) => s.projectId === projectId && s.ownerId === ownerId
+      );
+      items.sort((a, b) => a.sceneNumber - b.sceneNumber);
+      onData(items);
+    };
+    localListeners.add(emit);
+    setTimeout(emit, 0);
+    return () => {
+      localListeners.delete(emit);
+    };
+  }
+
   const path = `projects/${projectId}/scenes`;
   const q = query(collection(db, path), where('ownerId', '==', ownerId));
 
@@ -113,7 +200,7 @@ export async function createProject(
     ? Math.max(0, Math.min(100, Math.round(Number(input.marketProbability))))
     : 50;
 
-  const payload = {
+  const baseFields = {
     ownerId,
     title: clampNonEmptyStr(input.title, 200, 'Untitled Prediction Market Event'),
     category: clampNonEmptyStr(input.category, 60, 'Macroeconomics'),
@@ -158,6 +245,24 @@ export async function createProject(
         notes: '',
       })
     ),
+  };
+
+  if (isLocalSession(ownerId)) {
+    const nowMs = Date.now();
+    const existing = readLocalProjects();
+    const filtered = existing.filter((p) => p.id !== projectId);
+    filtered.push({
+      id: projectId,
+      ...baseFields,
+      createdAtMs: nowMs,
+      updatedAtMs: nowMs,
+    } as any);
+    writeLocalProjects(filtered);
+    return projectId;
+  }
+
+  const payload = {
+    ...baseFields,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -175,9 +280,7 @@ export async function updateProject(
   updates: Partial<Omit<Project, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   const path = `projects/${projectId}`;
-  const cleanUpdates: Record<string, any> = {
-    updatedAt: serverTimestamp(),
-  };
+  const cleanUpdates: Record<string, any> = {};
 
   if (updates.title !== undefined) cleanUpdates.title = clampNonEmptyStr(updates.title, 200, 'Untitled Market');
   if (updates.category !== undefined) cleanUpdates.category = clampNonEmptyStr(updates.category, 60, 'Macroeconomics');
@@ -213,6 +316,19 @@ export async function updateProject(
   if (updates.videoFileName !== undefined) cleanUpdates.videoFileName = clampStr(updates.videoFileName, 255);
   if (updates.workflowStatus !== undefined) cleanUpdates.workflowStatus = clampStr(updates.workflowStatus, 2000);
 
+  if (isLocalSession()) {
+    const existing = readLocalProjects();
+    const next = existing.map((p: any) =>
+      p.id === projectId
+        ? { ...p, ...cleanUpdates, updatedAtMs: Date.now() }
+        : p
+    );
+    writeLocalProjects(next);
+    return;
+  }
+
+  cleanUpdates.updatedAt = serverTimestamp();
+
   try {
     await updateDoc(doc(db, 'projects', projectId), cleanUpdates);
   } catch (error) {
@@ -221,6 +337,14 @@ export async function updateProject(
 }
 
 export async function deleteProjectWithScenes(projectId: string, ownerId: string): Promise<void> {
+  if (isLocalSession(ownerId)) {
+    const nextProjects = readLocalProjects().filter((p) => p.id !== projectId);
+    const nextScenes = readLocalScenes().filter((s) => s.projectId !== projectId);
+    writeLocalScenes(nextScenes);
+    writeLocalProjects(nextProjects);
+    return;
+  }
+
   const scenesPath = `projects/${projectId}/scenes`;
   try {
     const q = query(collection(db, scenesPath), where('ownerId', '==', ownerId));
@@ -246,17 +370,39 @@ export async function saveScene(
   const sceneNumber = Math.max(1, Math.min(50, Math.round(Number(sceneInput.sceneNumber) || 1)));
   const durationSeconds = Math.max(1, Math.min(120, Math.round(Number(sceneInput.durationSeconds) || 5)));
 
+  const normalizedFields = {
+    sceneNumber,
+    durationSeconds,
+    sceneDescription: clampNonEmptyStr(sceneInput.sceneDescription, 2000, 'Scene description'),
+    visualPrompt: clampNonEmptyStr(sceneInput.visualPrompt, 2000, 'Runway camera prompt'),
+    higgsfieldPrompt: clampStr(sceneInput.higgsfieldPrompt, 2000),
+    voiceoverText: clampNonEmptyStr(sceneInput.voiceoverText, 2000, 'Voiceover narration'),
+    onScreenText: clampStr(sceneInput.onScreenText, 500),
+    transitionRecommendation: clampNonEmptyStr(sceneInput.transitionRecommendation, 300, 'Hard Cut'),
+    epistemicTag: sanitizeEpistemicTag(sceneInput.epistemicTag),
+  };
+
+  if (isLocalSession(ownerId)) {
+    const scenes = readLocalScenes();
+    const idx = scenes.findIndex((s) => s.id === sceneId);
+    const record: Scene = {
+      id: sceneId,
+      projectId,
+      ownerId,
+      ...normalizedFields,
+    };
+    if (idx >= 0) {
+      scenes[idx] = record;
+    } else {
+      scenes.push(record);
+    }
+    writeLocalScenes(scenes);
+    return sceneId;
+  }
+
   if (existingSceneId) {
     const updatePayload = {
-      sceneNumber,
-      durationSeconds,
-      sceneDescription: clampNonEmptyStr(sceneInput.sceneDescription, 2000, 'Scene description'),
-      visualPrompt: clampNonEmptyStr(sceneInput.visualPrompt, 2000, 'Runway camera prompt'),
-      higgsfieldPrompt: clampStr(sceneInput.higgsfieldPrompt, 2000),
-      voiceoverText: clampNonEmptyStr(sceneInput.voiceoverText, 2000, 'Voiceover narration'),
-      onScreenText: clampStr(sceneInput.onScreenText, 500),
-      transitionRecommendation: clampNonEmptyStr(sceneInput.transitionRecommendation, 300, 'Hard Cut'),
-      epistemicTag: sanitizeEpistemicTag(sceneInput.epistemicTag),
+      ...normalizedFields,
       updatedAt: serverTimestamp(),
     };
     try {
@@ -269,15 +415,7 @@ export async function saveScene(
     const createPayload = {
       projectId,
       ownerId,
-      sceneNumber,
-      durationSeconds,
-      sceneDescription: clampNonEmptyStr(sceneInput.sceneDescription, 2000, 'Scene description'),
-      visualPrompt: clampNonEmptyStr(sceneInput.visualPrompt, 2000, 'Runway camera prompt'),
-      higgsfieldPrompt: clampStr(sceneInput.higgsfieldPrompt, 2000),
-      voiceoverText: clampNonEmptyStr(sceneInput.voiceoverText, 2000, 'Voiceover narration'),
-      onScreenText: clampStr(sceneInput.onScreenText, 500),
-      transitionRecommendation: clampNonEmptyStr(sceneInput.transitionRecommendation, 300, 'Hard Cut'),
-      epistemicTag: sanitizeEpistemicTag(sceneInput.epistemicTag),
+      ...normalizedFields,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -295,6 +433,26 @@ export async function replaceAllProjectScenes(
   ownerId: string,
   newScenes: Omit<Scene, 'id' | 'projectId' | 'ownerId' | 'createdAt' | 'updatedAt'>[]
 ): Promise<void> {
+  if (isLocalSession(ownerId)) {
+    const remaining = readLocalScenes().filter((s) => s.projectId !== projectId);
+    const created: Scene[] = newScenes.map((s, i) => ({
+      id: makeSafeId('scene'),
+      projectId,
+      ownerId,
+      sceneNumber: i + 1,
+      durationSeconds: Math.max(1, Math.min(120, Math.round(Number(s.durationSeconds) || 5))),
+      sceneDescription: clampNonEmptyStr(s.sceneDescription, 2000, 'Scene description'),
+      visualPrompt: clampNonEmptyStr(s.visualPrompt, 2000, 'Runway camera prompt'),
+      higgsfieldPrompt: clampStr(s.higgsfieldPrompt, 2000),
+      voiceoverText: clampNonEmptyStr(s.voiceoverText, 2000, 'Voiceover narration'),
+      onScreenText: clampStr(s.onScreenText, 500),
+      transitionRecommendation: clampNonEmptyStr(s.transitionRecommendation, 300, 'Hard Cut'),
+      epistemicTag: sanitizeEpistemicTag(s.epistemicTag),
+    }));
+    writeLocalScenes([...remaining, ...created]);
+    return;
+  }
+
   const scenesPath = `projects/${projectId}/scenes`;
   try {
     const q = query(collection(db, scenesPath), where('ownerId', '==', ownerId));
@@ -315,6 +473,14 @@ export async function replaceAllProjectScenes(
 }
 
 export async function deleteScene(projectId: string, sceneId: string): Promise<void> {
+  if (isLocalSession()) {
+    const next = readLocalScenes().filter(
+      (s) => !(s.projectId === projectId && s.id === sceneId)
+    );
+    writeLocalScenes(next);
+    return;
+  }
+
   const path = `projects/${projectId}/scenes/${sceneId}`;
   try {
     await deleteDoc(doc(db, `projects/${projectId}/scenes`, sceneId));

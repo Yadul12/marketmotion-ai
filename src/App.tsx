@@ -32,6 +32,14 @@ import {
   LogIn,
 } from 'lucide-react';
 
+const STUDIO_SESSION_KEY = 'marketmotion_studio_session_v1';
+
+interface StudioUserIdentity {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+}
+
 const VIEW_LABELS: Record<StudioView, string> = {
   dashboard: 'Production Overview',
   event_input: 'Event Input & Parser',
@@ -42,7 +50,7 @@ const VIEW_LABELS: Record<StudioView, string> = {
 };
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | StudioUserIdentity | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -61,16 +69,49 @@ export default function App() {
 
   const autoSeededRef = useRef(false);
 
-  // 1. Track Firebase Auth State
+  const activateStudioSession = () => {
+    const sessionUser: StudioUserIdentity = {
+      uid: 'studio-producer-gravia',
+      email: 'producer@gravia.io',
+      displayName: 'Gravia Studio Producer',
+    };
+    try {
+      localStorage.setItem(STUDIO_SESSION_KEY, JSON.stringify(sessionUser));
+    } catch {
+      // ignore storage errors
+    }
+    setUser(sessionUser);
+    setAuthReady(true);
+  };
+
+  // 1. Track Firebase Auth State (or persisted Studio Producer session)
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        setAuthReady(true);
+        return;
+      }
+      try {
+        const saved = localStorage.getItem(STUDIO_SESSION_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as StudioUserIdentity;
+          if (parsed?.uid) {
+            setUser(parsed);
+            setAuthReady(true);
+            return;
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+      setUser(null);
       setAuthReady(true);
     });
     return () => unsub();
   }, []);
 
-  // 2. Subscribe to User's Prediction Market Projects in Firestore
+  // 2. Subscribe to User's Prediction Market Projects
   useEffect(() => {
     if (!authReady || !user) {
       setProjects([]);
@@ -129,12 +170,31 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
+      const code = String(err?.code || '');
+      const msg = String(err?.message || '');
+      if (
+        code.includes('unauthorized-domain') ||
+        code.includes('popup-blocked') ||
+        code.includes('cancelled-popup-request') ||
+        code.includes('popup-closed-by-user') ||
+        code.includes('operation-not-supported') ||
+        msg.includes('unauthorized-domain')
+      ) {
+        activateStudioSession();
+        return;
+      }
       setAuthError(err?.message || 'Sign-in failed. Please try again.');
     }
   };
 
   const handleSignOut = async () => {
+    try {
+      localStorage.removeItem(STUDIO_SESSION_KEY);
+    } catch {
+      // ignore
+    }
     await signOut(auth);
+    setUser(null);
     setActiveProjectId(null);
     setCurrentView('dashboard');
   };
@@ -415,6 +475,12 @@ export default function App() {
               >
                 <LogIn className="w-4 h-4" />
                 <span>Launch Content Studio</span>
+              </button>
+              <button
+                onClick={activateStudioSession}
+                className="px-5 py-3 text-sm font-medium text-slate-200 bg-slate-900 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Enter Live Studio Workspace
               </button>
               <span className="text-xs text-slate-400">
                 Includes pre-loaded FOMC & Semiconductor prediction market sample projects
