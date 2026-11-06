@@ -62,6 +62,7 @@ export const CreativeWorkflowView: React.FC<CreativeWorkflowViewProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isRenderingAnimatic, setIsRenderingAnimatic] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -188,6 +189,9 @@ ${scenes
     setUploadError(null);
     setIsUploading(true);
     try {
+      const objectUrl = URL.createObjectURL(file);
+      setLocalPreviewUrl(objectUrl);
+
       const formData = new FormData();
       formData.append('video', file);
       const res = await fetch('/api/media/upload', {
@@ -383,7 +387,11 @@ ${scenes
 
       recorder.stop();
       const webmBlob = await recordingDone;
-      const file = new File([webmBlob], `marketmotion_preview_${project.id}.webm`, {
+      const objectUrl = URL.createObjectURL(webmBlob);
+      setLocalPreviewUrl(objectUrl);
+
+      const fileName = `marketmotion_preview_${project.id}.webm`;
+      const file = new File([webmBlob], fileName, {
         type: 'video/webm',
       });
 
@@ -407,6 +415,8 @@ ${scenes
       setIsRenderingAnimatic(false);
     }
   };
+
+  const activeVideoSrc = localPreviewUrl || project.videoUrl;
 
   return (
     <div className="space-y-8">
@@ -691,12 +701,12 @@ ${scenes
             </div>
           )}
 
-          {project.videoUrl ? (
+          {activeVideoSrc ? (
             <div className="space-y-3">
               <div className="bg-black border border-slate-800 rounded-lg overflow-hidden aspect-[9/16] max-h-[420px] mx-auto flex items-center justify-center">
                 <video
-                  key={project.videoUrl}
-                  src={project.videoUrl}
+                  key={activeVideoSrc}
+                  src={activeVideoSrc}
                   controls
                   playsInline
                   className="w-full h-full object-contain"
@@ -710,7 +720,7 @@ ${scenes
                   </span>
                 </span>
                 <a
-                  href={project.videoUrl}
+                  href={activeVideoSrc}
                   download={project.videoFileName || 'marketmotion_video.webm'}
                   className="text-sky-400 hover:text-sky-300 underline"
                 >
